@@ -177,15 +177,15 @@ private:
     }
     
 public:
-    URLShortenerServer(int port = 8080) : server_port(port) {
+    URLShortenerServer(int port = 8080) : server_port(port), templateEngine("") {
         try {
-            templateEngine = Template::fromFile("index.html");
-        } catch (const exception& e) {
-            cerr << "Error loading template: " << e.what() << endl;
-            throw;
-        }
-        loadAliases();
-        addTestAliases();
+             templateEngine = Template::fromFile("index.html");
+         } catch (const exception& e) {
+             cerr << "Error loading template: " << e.what() << endl;
+             throw;
+         }
+         loadAliases();
+         addTestAliases();
     }
     
     void addTestAliases() {
