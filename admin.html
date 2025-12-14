@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tlink | Admin Panel</title>
+<style>
+/* CORE VARIABLES - Matching Main Page */
+:root {
+  --bg: #ffffff;
+  --surface: #f8f9fa;
+  --surface-alt: #f0f0f0;
+  --text: #000000;
+  --text-muted: #666666;
+  --border: #e5e5e5;
+  --border-strong: #000000;
+  --primary: #000000;
+  --primary-inv: #ffffff;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+}
+
+[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --surface: #111111;
+  --surface-alt: #1a1a1a;
+  --text: #ffffff;
+  --text-muted: #888888;
+  --border: #333333;
+  --border-strong: #ffffff;
+  --primary: #ffffff;
+  --primary-inv: #000000;
+  --success: #22c55e;
+  --danger: #ef4444;
+}
+
+* { 
+  box-sizing: border-box; 
+  margin: 0; 
+  padding: 0; 
+}
+
+body { 
+  font-family: var(--font-main); 
+  background: var(--bg); 
+  color: var(--text); 
+  line-height: 1.5;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* HEADER - Matching Main Page */
+.header {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 2rem;
+  z-index: 100;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brand {
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+
+.header-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.theme-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  border-radius: 4px;
+}
+.theme-toggle:hover { border-color: var(--text); }
+.theme-toggle .icon { width: 16px; height: 16px; }
+.theme-toggle .sun { display: block; }
+.theme-toggle .moon { display: none; }
+[data-theme="dark"] .theme-toggle .sun { display: none; }
+[data-theme="dark"] .theme-toggle .moon { display: block; }
+
+/* CONTAINER & LAYOUT */
+.container { 
+  max-width: 1400px; 
+  margin: 0 auto; 
+  padding: 2rem;
+}
+
+/* TABS - Utilitarian Style */
+.nav-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+  gap: 2rem;
+}
+
+.nav-tab {
+  padding: 0.75rem 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.nav-tab:hover { color: var(--text); }
+.nav-tab.active {
+  color: var(--text);
+  border-bottom: 2px solid var(--text);
+}
+
+/* CARDS - Technical/Wireframe Style */
+.card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.card-subtitle {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+}
+
+/* FORMS - Squared & Sharp */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+  align-items: end;
+}
+
+.form-group { margin-bottom: 1rem; }
+
+.form-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  color: var(--text-muted);
+}
+
+.form-input, .form-select {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  border-radius: 0; /* Sharp edges */
+}
+
+.form-input:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--text);
+}
+
+/* BUTTONS - High Contrast */
+.btn {
+  padding: 0.6rem 1.2rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-inv);
+  border-color: var(--primary);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+}
+
+.btn-danger {
+  background: transparent;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: white;
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn-outline:hover:not(:disabled) {
+  border-color: var(--text);
+}
+
+.btn-sm { padding: 0.4rem 0.8rem; font-size: 0.75rem; }
+
+/* UPLOAD ZONE - Industrial */
+.upload-zone {
+  border: 1px dashed var(--text-muted);
+  padding: 4rem 2rem;
+  text-align: center;
+  transition: all 0.2s;
+  background: var(--surface-alt);
+  cursor: pointer;
+}
+
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--text);
+  background: var(--surface);
+}
+
+.upload-icon { font-size: 2rem; margin-bottom: 1rem; opacity: 0.5; }
+.upload-text { font-weight: 500; }
+.upload-hint { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+
+/* FILE LISTS & PROGRESS */
+.file-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border-top: 1px solid var(--border);
+}
+
+.file-item {
+  display: grid;
+  grid-template-columns: 30px 1fr 100px;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.file-item:last-child { border-bottom: none; }
+
+.progress-bar {
+  background: var(--surface-alt);
+  height: 4px;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--text);
+  width: 0%;
+  transition: width 0.3s ease;
+}
+
+/* GRIDS - Matching Main Page */
+.grid { display: grid; gap: 1rem; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+.album-grid, .photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.5rem; /* Tight gap like main page */
+}
+
+.album-item, .photo-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1rem;
+  position: relative;
+}
+
+.album-item:hover, .photo-item:hover {
+  border-color: var(--text);
+}
+
+.photo-item img, .photo-item video {
+  width: 100%;
+  aspect-ratio: 1/1; /* Square aspect */
+  object-fit: cover;
+  margin-bottom: 0.5rem;
+  display: block;
+  background: var(--surface-alt);
+}
+
+.album-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.5rem; }
+.photo-name { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* UTILS */
+.hidden { display: none !important; }
+.text-center { text-align: center; }
+
+.status-message {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border-left: 3px solid;
+}
+.status-success { border-color: var(--success); background: rgba(34, 197, 94, 0.1); color: var(--success); }
+.status-error { border-color: var(--danger); background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.status-warning { border-color: #eab308; background: rgba(234, 179, 8, 0.1); color: #ca8a04; }
+
+/* STATS DISPLAY */
+.stat-box {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  text-align: center;
+}
+.stat-number { font-size: 2.5rem; font-weight: 700; line-height: 1; margin-bottom: 0.5rem; }
+.stat-label { font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.05em; }
+
+/* PIN MODAL */
+#pinModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 2rem;
+  max-width: 400px;
+  width: 90%;
+}
+
+.modal-content h2 {
+  margin-bottom: 1rem;
+  text-transform: uppercase;
+  font-size: 1.2rem;
+}
+
+.modal-content input {
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.modal-content button {
+  width: 100%;
+  padding: 0.8rem;
+  background: var(--primary);
+  color: var(--primary-inv);
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .container { padding: 1rem; }
+  .nav-tabs { gap: 1rem; overflow-x: auto; }
+  .album-grid, .photo-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+.alias-table {
+1
+</style>
+</head>
+<body>
+
+<div class="header">
+  <a href="/" class="brand">tlink / admin</a>
+  <div class="header-controls">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="icon sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+        <svg class="icon moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+    </button>
+    <div style="font-family: var(--font-mono); font-size: 0.8rem;" id="systemStatus">● Online</div>
+  </div>
+</div>
+
+<div class="container">
+    
+    <!-- Status Messages -->
+    <div id="statusMessage" class="status-message hidden"></div>
+    <div id="errorMessage" class="status-message status-error hidden"></div>
+
+    <!-- Login Card (Initial View) -->
+    <div id="loginCard" class="card">
+        <div class="card-header">
+            <div>
+                <h2 class="card-title">ADMIN LOGIN (OTP)</h2>
+                <p class="card-subtitle">GOOGLE AUTHENTICATOR (TOTP) STYLE</p>
+            </div>
+        </div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label">OTP Code</label>
+                <input type="text" id="otpCode" class="form-input" placeholder="e.g. 123456" maxlength="6">
+            </div>
+            <div class="form-group" style="grid-column: span 1 / span 2;">
+                <button class="btn btn-primary" onclick="loginAdmin()">LOGIN</button>
+                <p class="card-subtitle" style="margin-top: 1rem;">
+                    If this is your first time, you will need to manually generate an OTP via the <a href="#" onclick="showStatus('Use /api/generate-otp to get a test code.', 'warning');" style="color:var(--text); text-decoration:underline;">/api/generate-otp</a> endpoint.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Panel Content (After Login) -->
+    <div id="adminContent" class="hidden">
+        
+        <div class="card" style="margin-bottom: 2rem;">
+            <div class="card-header">
+                <div>
+                    <h2 class="card-title">CREATE ALIAS (MODERATOR)</h2>
+                    <p class="card-subtitle">ADD NEW LINK TO SYSTEM</p>
+                </div>
+            </div>
+            <form id="createAliasForm" class="form-grid">
+                <div class="form-group">
+                    <label class="form-label" for="newAlias">Alias</label>
+                    <input type="text" id="newAlias" name="newAlias" class="form-input" required placeholder="new-link">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="newUrl">Destination URL</label>
+                    <input type="url" id="newUrl" name="newUrl" class="form-input" required placeholder="https://long.url.com/...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="modOtp">OTP (Optional, for mod)</label>
+                    <input type="text" id="modOtp" class="form-input" placeholder="123456" maxlength="6">
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary" id="createBtn" style="margin-top: 2rem;">CREATE ALIAS</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">ALIAS DIRECTORY</h2>
+                <button class="btn btn-outline btn-sm" onclick="loadAliases()">REFRESH</button>
+            </div>
+            <p class="card-subtitle" id="aliasCount">Loading...</p>
+            <div style="max-height: 60vh; overflow-y: auto;">
+                <table class="alias-table">
+                    <thead>
+                        <tr>
+                            <th>ALIAS</th>
+                            <th>DESTINATION</th>
+                            <th>ACTION</th>
+                        </tr>
+                    </thead>
+                    <tbody id="aliasesList">
+                        <!-- Aliases will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+// --- THEME & UTILS (Matches Main Page) ---
+function getStoredTheme() { return localStorage.getItem('theme') || 'light'; }
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+}
+document.addEventListener('DOMContentLoaded', () => {
+    setTheme(getStoredTheme());
+    document.getElementById('themeToggle').addEventListener('click', () => {
+        const current = document.documentElement.getAttribute('data-theme') || 'light';
+        setTheme(current === 'dark' ? 'light' : 'dark');
+    });
+});
+
+function showStatus(message, type = 'success') {
+  const statusDiv = document.getElementById('statusMessage');
+  const errorDiv = document.getElementById('errorMessage');
+  
+  statusDiv.classList.add('hidden');
+  errorDiv.classList.add('hidden');
+  
+  const targetDiv = type === 'error' ? errorDiv : statusDiv;
+  targetDiv.textContent = message.toUpperCase();
+  targetDiv.className = `status-message status-${type}`;
+  targetDiv.classList.remove('hidden');
+  
+  setTimeout(() => targetDiv.classList.add('hidden'), 5000);
+}
+
+// --- OTP/TOKEN STORAGE (Simplified Session) ---
+let authToken = ''; // This will store the validated OTP
+
+// --- CORE ADMIN LOGIC ---
+
+async function loginAdmin() {
+    const otpCode = document.getElementById('otpCode').value.trim();
+    if (!otpCode) {
+        showStatus('Please enter an OTP code.', 'error');
+        return;
+    }
+
+    // Since we don't have a specific login endpoint, we test the OTP on the GET /api/aliases endpoint
+    try {
+        const res = await fetch(`/api/aliases?otp=${otpCode}`);
+        
+        if (res.ok) {
+            // Success! Treat the OTP as the session token (for this single request)
+            // Note: A real system would exchange OTP for a session token/cookie
+            authToken = otpCode;
+            document.getElementById('loginCard').classList.add('hidden');
+            document.getElementById('adminContent').classList.remove('hidden');
+            showStatus('Login Successful. Token set.');
+            loadAliases();
+        } else {
+            const result = await res.json();
+            throw new Error(result.error || `Authentication Failed (${res.status})`);
+        }
+    } catch (e) {
+        showStatus('Login Failed: ' + e.message, 'error');
+    }
+}
+
+async function loadAliases() {
+    if (!authToken) return showStatus('Not logged in. Relogin required.', 'error');
+    
+    const list = document.getElementById('aliasesList');
+    list.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+
+    try {
+        // Use the validated OTP as the auth token
+        const res = await fetch(`/api/aliases?otp=${authToken}`); 
+        
+        if (!res.ok) {
+            const error = await res.json();
+            throw new Error(error.error || `Failed to fetch data (${res.status})`);
+        }
+        
+        const data = await res.json();
+        const aliases = data.aliases;
+        
+        document.getElementById('aliasCount').textContent = `${aliases.length} Active Aliases`;
+        
+        if (aliases.length === 0) {
+            list.innerHTML = '<tr><td colspan="3" style="text-align:center;">NO ALIASES FOUND</td></tr>';
+            return;
+        }
+
+        list.innerHTML = aliases.map(a => `
+            <tr>
+                <td><a href="/r/${a.alias}" target="_blank">/r/${a.alias}</a></td>
+                <td style="font-size:0.8rem;">${a.url}</td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="deleteAlias('${a.alias}')">DELETE</button>
+                </td>
+            </tr>
+        `).join('');
+
+    } catch (e) {
+        showStatus('Load Failed: ' + e.message, 'error');
+        list.innerHTML = '<tr><td colspan="3" style="text-align:center;">' + e.message + '</td></tr>';
+    }
+}
+
+// Handler for the Create Alias Form
+document.getElementById('createAliasForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const alias = document.getElementById('newAlias').value;
+    const url = document.getElementById('newUrl').value;
+    const otp = document.getElementById('modOtp').value || authToken; // Use MOD OTP if present, else login OTP
+
+    const createBtn = document.getElementById('createBtn');
+    createBtn.disabled = true;
+    createBtn.textContent = 'CREATING...';
+
+    if (!otp) {
+        showStatus('OTP is required for creation.', 'error');
+        createBtn.disabled = false;
+        createBtn.textContent = 'CREATE ALIAS';
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/aliases', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alias, url, otp })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.status === 'success') {
+            showStatus(`SUCCESS: /r/${result.alias} created.`, 'success');
+            document.getElementById('createAliasForm').reset();
+            loadAliases();
+        } else {
+            throw new Error(result.message || result.error || 'Failed to create alias.');
+        }
+    } catch (error) {
+        showStatus(`ERROR: ${error.message}`, 'error');
+    } finally {
+        createBtn.disabled = false;
+        createBtn.textContent = 'CREATE ALIAS';
+    }
+});
+
+async function deleteAlias(alias) {
+    // NOTE: This feature is not implemented in the C++ backend and will return 404/405.
+    // To make it functional, you would need to add:
+    // 1. A new `handleDeleteRequest` method in C++.
+    // 2. Logic inside it to handle `DELETE /api/aliases/{alias}` to remove it from the map and resave.
+    
+    if (!confirm(`Are you sure you want to delete alias: /r/${alias}?`)) {
+        return;
+    }
+    
+    showStatus(`DELETE /api/aliases/${alias} is NOT IMPLEMENTED in the C++ backend.`, 'error');
+    // loadAliases(); // Refresh after confirming delete is attempted/failed
+}
+</script>
+</body>
+</html>

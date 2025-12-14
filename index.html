@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>tlink | URL Shortener</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #ffffff;
+            --surface: #f8f9fa;
+            --text: #000000;
+            --text-muted: #666666;
+            --border: #e5e5e5;
+            --primary: #000000;
+            --primary-inv: #ffffff;
+            --success: #16a34a;
+            --danger: #dc2626;
+            --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-mono: 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', monospace;
+        }
+
+        [data-theme="dark"] {
+            --bg: #0a0a0a;
+            --surface: #111111;
+            --text: #ffffff;
+            --text-muted: #888888;
+            --border: #333333;
+            --primary: #ffffff;
+            --primary-inv: #000000;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body { 
+            font-family: var(--font-main); 
+            background: var(--bg); 
+            color: var(--text); 
+            line-height: 1.5;
+            transition: background-color 0.3s ease, color 0.3s ease;
+            display: flex;
+            justify-content: center;
+            padding-top: 5vh;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand {
+            font-size: 1.25rem;
+            font-weight: 700;
+            text-decoration: none;
+            color: var(--text);
+            letter-spacing: -0.02em;
+        }
+
+        .theme-toggle {
+            background: transparent;
+            border: 1px solid var(--border);
+            width: 32px;
+            height: 32px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text);
+            border-radius: 4px;
+        }
+        .theme-toggle:hover { border-color: var(--text); }
+        .theme-toggle .icon { width: 16px; height: 16px; }
+        .theme-toggle .sun { display: none; }
+        .theme-toggle .moon { display: block; }
+        [data-theme="dark"] .theme-toggle .sun { display: block; }
+        [data-theme="dark"] .theme-toggle .moon { display: none; }
+
+
+        .container { 
+            max-width: 550px; 
+            margin: 0 auto; 
+            padding: 2rem;
+            width: 100%;
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            background: var(--surface);
+            padding: 2rem;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .form-group { margin-bottom: 1.5rem; }
+
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.8rem 1rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            border-radius: 0;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--text);
+        }
+
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: 1px solid var(--primary);
+            border-radius: 0;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: var(--primary-inv);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: transparent;
+            color: var(--text);
+        }
+
+        .status-message {
+            padding: 1rem;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border: 1px solid;
+            display: none;
+            font-family: var(--font-mono);
+        }
+        .status-success { border-color: var(--success); background: rgba(22, 163, 74, 0.1); color: var(--success); }
+        .status-error { border-color: var(--danger); background: rgba(220, 38, 38, 0.1); color: var(--danger); }
+    </style>
+</head>
+<body>
+
+    <!-- <div class="header"> -->
+    <!--     <a href="/" class="brand">tlink / shortener</a> -->
+    <!--     <div style="display: flex; align-items: center; gap: 1rem;"> -->
+    <!--         <a href="/admin" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Admin</a> -->
+    <!--         <button class="theme-toggle" id="themeToggle" title="Toggle theme"> -->
+    <!--             <svg class="icon sun" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"></circle><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg> -->
+    <!--             <svg class="icon moon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg> -->
+    <!--         </button> -->
+    <!--     </div> -->
+    <!-- </div> -->
+
+    <div class="container">
+        <div class="card">
+            <h2 class="card-title">Create New Link</h2>
+            <form id="urlForm">
+                <div class="form-group">
+                    <label class="form-label" for="alias">Alias</label>
+                    <input type="text" id="alias" name="alias" class="form-input" required placeholder="custom-alias">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="url">Destination URL</label>
+                    <input type="url" id="url" name="url" class="form-input" required placeholder="https://example.com/long-url-to-shorten">
+                </div>
+                <button type="submit" class="btn btn-primary" id="submitBtn">Generate</button>
+            </form>
+            <div id="notification" class="status-message"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- THEME LOGIC ---
+        function getStoredTheme() { return localStorage.getItem('theme') || 'light'; }
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setTheme(getStoredTheme());
+            document.getElementById('themeToggle').addEventListener('click', () => {
+                const current = document.documentElement.getAttribute('data-theme') || 'light';
+                setTheme(current === 'dark' ? 'light' : 'dark');
+            });
+        });
+
+        // --- FORM SUBMISSION & NOTIFICATION ---
+        const urlForm = document.getElementById('urlForm');
+        const notification = document.getElementById('notification');
+        let notificationTimer;
+
+        urlForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const alias = document.getElementById('alias').value;
+            const url = document.getElementById('url').value;
+            const submitBtn = document.getElementById('submitBtn');
+            
+            submitBtn.textContent = 'Processing...';
+            submitBtn.disabled = true;
+
+            try {
+                // Generate OTP first
+                const otp = await generateOTP();
+                if (!otp) {
+                    throw new Error('Failed to generate OTP');
+                }
+
+                // Submit with OTP
+                const response = await fetch('/api/aliases', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ alias, url, otp })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    showNotification(`SUCCESS: /r/${result.alias} -> ${result.url}`, 'success');
+                    urlForm.reset();
+                } else {
+                    throw new Error(result.message || 'Failed to create alias.');
+                }
+            } catch (error) {
+                showNotification(`ERROR: ${error.message}`, 'error');
+            } finally {
+                submitBtn.textContent = 'Generate';
+                submitBtn.disabled = false;
+            }
+        });
+
+        function showNotification(message, type) {
+            clearTimeout(notificationTimer);
+            notification.textContent = message;
+            notification.className = 'status-message'; // Reset classes
+            notification.classList.add(type === 'success' ? 'status-success' : 'status-error');
+            notification.style.display = 'block';
+
+            notificationTimer = setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+
+        // --- OTP MANAGEMENT ---
+        let currentOTP = '';
+
+        async function generateOTP() {
+            try {
+                const response = await fetch('/api/generate-otp');
+                const result = await response.json();
+                
+                if (response.ok) {
+                    currentOTP = result.otp;
+                    showNotification(`OTP Generated: ${currentOTP} (valid for 5 minutes)`, 'success');
+                    return result.otp;
+                } else {
+                    throw new Error('Failed to generate OTP');
+                }
+            } catch (error) {
+                showNotification(`ERROR: ${error.message}`, 'error');
+                return null;
+            }
+        }
+    </script>
+</body>
+</html>
