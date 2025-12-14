@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <thread>
 #include <mutex>
+#include <cstdlib> // Required for getenv
 #include "template.hpp"
 
 using namespace std;
@@ -623,8 +624,24 @@ public:
 };
 
 int main() {
+    int port = 8080; // Default port
+    const char* port_env = getenv("PORT");
+    if (port_env) {
+        try {
+            port = stoi(port_env);
+            if (port <= 0 || port > 65535) { // Check for valid port range
+                cerr << "Warning: Invalid PORT environment variable value. Using default port 8080." << endl;
+                port = 8080;
+            }
+        } catch (const std::invalid_argument& e) {
+            cerr << "Warning: Invalid PORT environment variable (not a number). Using default port 8080." << endl;
+        } catch (const std::out_of_range& e) {
+            cerr << "Warning: PORT environment variable out of range. Using default port 8080." << endl;
+        }
+    }
+
     try {
-        URLShortenerServer server(8080);
+        URLShortenerServer server(port);
         server.addTestAliases();
         server.start();
     } catch (const exception& e) {
