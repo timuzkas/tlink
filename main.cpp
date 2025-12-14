@@ -12,12 +12,12 @@
 #include <mutex>
 #include <cstdlib>
 #include <algorithm>
-
-// NOTE: Assumes 'template.hpp' is a file providing the 'Template' class.
 #include "template.hpp" 
 
 using namespace std;
 
+// OTP (One-Time Password) Implementation - Logic retained for potential future use, 
+// but removed from current API endpoints for now.
 class OTPManager {
 private:
     unordered_map<string, string> otpSecrets;
@@ -75,8 +75,6 @@ public:
         }
         
         string currentOTP = generateOTP(otpSecrets[userId]);
-        
-        // Allow for clock skew: current (t) and previous (t-1) time step
         string previousOTP = generateOTP(otpSecrets[userId], 30);
         
         bool isValid = (otpCode == currentOTP || otpCode == previousOTP);
@@ -120,7 +118,6 @@ private:
         response += "Content-Length: " + to_string(content.length()) + "\r\n";
         response += "Connection: close\r\n";
         
-        // Security headers
         response += "X-Content-Type-Options: nosniff\r\n";
         response += "X-Frame-Options: DENY\r\n";
         response += "X-XSS-Protection: 1; mode=block\r\n";
@@ -162,15 +159,8 @@ private:
             }
         }
         else if (path == "/api/aliases") {
+            // OTP check removed for testing/simplicity
             lock_guard<mutex> lock(aliases_mutex);
-            string otpCode = queryParams.count("otp") ? queryParams.at("otp") : "";
-            if (otpCode.empty() && headers.count("X-OTP")) {
-                otpCode = headers.at("X-OTP");
-            }
-            
-            if (!otpManager.validateOTP("admin", otpCode)) {
-                return buildHttpResponse("{\"error\":\"Unauthorized - Invalid or expired OTP\"}", "application/json", 401);
-            }
             
             string json = "{\"aliases\":[";
             bool first = true;
@@ -269,14 +259,7 @@ private:
                 return buildHttpResponse("{\"status\":\"error\",\"message\":\"Invalid URL. Must start with http:// or https:// and be a valid URL (max 2000 chars).\"}", "application/json", 400);
             }
             
-            string otpCode = extractJsonValue(body, "otp");
-            if (otpCode.empty() && headers.count("X-OTP")) {
-                otpCode = headers.at("X-OTP");
-            }
-            
-            if (!otpManager.validateOTP("admin", otpCode)) {
-                return buildHttpResponse("{\"error\":\"Unauthorized - Invalid or expired OTP\"}", "application/json", 401);
-            }
+            // OTP check and extraction removed for testing/simplicity
             
             {
                 lock_guard<mutex> lock(aliases_mutex);
@@ -323,7 +306,6 @@ private:
             string line = headersStr.substr(start, end - start);
             size_t colonPos = line.find(": ");
             if (colonPos != string::npos) {
-                // Convert key to lowercase for consistent lookup
                 string key = line.substr(0, colonPos);
                 transform(key.begin(), key.end(), key.begin(), ::tolower);
                 headers[key] = line.substr(colonPos + 2);
@@ -334,63 +316,69 @@ private:
     }
     
     void handleClient(int clientSocket) {
-        // FIX: Increased buffer size significantly to ensure full request (headers + body)
-        // is read in a single call, especially with large proxy headers like Cloudflare's.
-        char buffer[65536] = {0}; 
-        ssize_t bytesRead = read(clientSocket, buffer, sizeof(buffer) - 1);
-        
-        if (bytesRead <= 0) { close(clientSocket); return; }
-        
-        string request(buffer, bytesRead);
-        
-        size_t methodEnd = request.find(' ');
-        if (methodEnd == string::npos) { close(clientSocket); return; }
-        
-        string method = request.substr(0, methodEnd);
-        size_t pathStart = methodEnd + 1;
-        size_t pathEnd = request.find(' ', pathStart);
-        
-        if (pathEnd == string::npos) { close(clientSocket); return; }
-        
-        string path = request.substr(pathStart, pathEnd - pathStart);
-        size_t queryStart = path.find('?');
-        string query;
-        
-        if (queryStart != string::npos) {
-            query = path.substr(queryStart + 1);
-            path = path.substr(0, queryStart);
+        try {
+            char buffer[65536] = {0}; 
+            ssize_t bytesRead = read(clientSocket, buffer, sizeof(buffer) - 1);
+            
+            if (bytesRead <= 0) { close(clientSocket); return; }
+            
+            string request(buffer, bytesRead);
+            
+            size_t methodEnd = request.find(' ');
+            if (methodEnd == string::npos) { close(clientSocket); return; }
+            
+            string method = request.substr(0, methodEnd);
+            size_t pathStart = methodEnd + 1;
+            size_t pathEnd = request.find(' ', pathStart);
+            
+            if (pathEnd == string::npos) { close(clientSocket); return; }
+            
+            string path = request.substr(pathStart, pathEnd - pathStart);
+            size_t queryStart = path.find('?');
+            string query;
+            
+            if (queryStart != string::npos) {
+                query = path.substr(queryStart + 1);
+                path = path.substr(0, queryStart);
+            }
+            
+            size_t headersStart = request.find("\r\n") + 2;
+            size_t headersEnd = request.find("\r\n\r\n");
+            
+            unordered_map<string, string> headers;
+            if (headersStart != string::npos && headersEnd != string::npos && headersStart < headersEnd) {
+                parseHeaders(request.substr(headersStart, headersEnd - headersStart), headers);
+            }
+            
+            string body;
+            size_t bodyStart = headersEnd + 4;
+            if (bodyStart < request.length()) {
+                body = request.substr(bodyStart);
+            }
+            
+            unordered_map<string, string> queryParams;
+            parseQueryParams(query, queryParams);
+            
+            string response;
+            
+            if (method == "GET") {
+                response = handleGetRequest(path, queryParams, headers);
+            } else if (method == "POST") {
+                cerr << "DEBUG: POST body: " << body << endl;
+                response = handlePostRequest(path, body, headers);
+            } else {
+                response = buildHttpResponse("<h1>405 Method Not Allowed</h1>", "text/html", 405);
+            }
+            
+            write(clientSocket, response.c_str(), response.length());
+            close(clientSocket);
+        } catch (const std::exception& e) {
+            cerr << "!!! EXCEPTION in handleClient: " << e.what() << endl;
+            close(clientSocket);
+        } catch (...) {
+            cerr << "!!! UNKNOWN EXCEPTION in handleClient" << endl;
+            close(clientSocket);
         }
-        
-        size_t headersStart = request.find("\r\n") + 2;
-        size_t headersEnd = request.find("\r\n\r\n");
-        
-        unordered_map<string, string> headers;
-        if (headersStart != string::npos && headersEnd != string::npos && headersStart < headersEnd) {
-            parseHeaders(request.substr(headersStart, headersEnd - headersStart), headers);
-        }
-        
-        string body;
-        size_t bodyStart = headersEnd + 4;
-        if (bodyStart < request.length()) {
-            body = request.substr(bodyStart);
-        }
-        
-        unordered_map<string, string> queryParams;
-        parseQueryParams(query, queryParams);
-        
-        string response;
-        
-        if (method == "GET") {
-            response = handleGetRequest(path, queryParams, headers);
-        } else if (method == "POST") {
-            cerr << "DEBUG: POST body: " << body << endl; // Retained original log for body
-            response = handlePostRequest(path, body, headers);
-        } else {
-            response = buildHttpResponse("<h1>405 Method Not Allowed</h1>", "text/html", 405);
-        }
-        
-        write(clientSocket, response.c_str(), response.length());
-        close(clientSocket);
     }
     
 public:
