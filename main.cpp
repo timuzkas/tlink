@@ -7,15 +7,35 @@
 #include <algorithm>
 #include <ctime>
 #include <cstdlib>
+#include <random>
+#include <iomanip>
 
-// Assumes httplib.h is in the include path
-#include "httplib.h" 
-// Assumes template.hpp is available
+#include "httplib.h"
 #include "template.hpp"
 
 using namespace std;
 
-// --- Security Helpers ---
+string jsonEscape(const string& input) {
+    stringstream ss;
+    for (char c : input) {
+        switch (c) {
+            case '"': ss << "\\\""; break;
+            case '\\': ss << "\\\\"; break;
+            case '\b': ss << "\\b"; break;
+            case '\f': ss << "\\f"; break;
+            case '\n': ss << "\\n"; break;
+            case '\r': ss << "\\r"; break;
+            case '\t': ss << "\\t"; break;
+            default:
+                if ('\x00' <= c && c <= '\x1f') {
+                    ss << "\\u" << hex << setw(4) << setfill('0') << (int)c;
+                } else {
+                    ss << c;
+                }
+        }
+    }
+    return ss.str();
+}
 
 void set_security_headers(httplib::Response& res, const string& contentType) {
     res.set_header("Content-Type", contentType);
@@ -26,38 +46,35 @@ void set_security_headers(httplib::Response& res, const string& contentType) {
     res.set_header("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https:; connect-src 'self'");
 }
 
-// --- OTP Management (Retained but unused in /api/aliases for now) ---
-
 class OTPManager {
 private:
     unordered_map<string, string> otpSecrets;
     unordered_map<string, string> otpCodes;
     unordered_map<string, time_t> otpExpiry;
     mutex otp_mutex;
-    
+
     string generateSecret(int length = 32) {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
         string secret;
+        random_device rd;
+        mt19937 gen(rd());
+        uniform_int_distribution<> dis(0, chars.length() - 1);
         for (int i = 0; i < length; i++) {
-            secret += chars[rand() % chars.length()];
+            secret += chars[dis(gen)];
         }
         return secret;
     }
-    
+
     string generateOTP(const string& secret, time_t timeStep = 30) {
         time_t currentTime = time(nullptr) / timeStep;
         string combined = secret + to_string(currentTime);
         unsigned int hash = 5381;
-        for (char c : combined) {
-            hash = ((hash << 5) + hash) + c;
-        }
+        for (char c : combined) hash = ((hash << 5) + hash) + c;
         string otp = to_string(hash % 1000000);
-        while (otp.length() < 6) {
-            otp = "0" + otp;
-        }
+        while (otp.length() < 6) otp = "0" + otp;
         return otp;
     }
-    
+
 public:
     string generateNewOTP(const string& userId) {
         lock_guard<mutex> lock(otp_mutex);
@@ -69,10 +86,10 @@ public:
         otpExpiry[userId] = time(nullptr) + 300;
         return otp;
     }
-    
+
     bool validateOTP(const string& userId, const string& otpCode) {
         lock_guard<mutex> lock(otp_mutex);
-        if (otpExpiry.find(userId) == otpExpiry.end() || 
+        if (otpExpiry.find(userId) == otpExpiry.end() ||
             otpExpiry[userId] < time(nullptr) ||
             otpCodes.find(userId) == otpCodes.end()) {
             return false;
@@ -88,32 +105,23 @@ public:
     }
 };
 
-// --- Rate Limiting ---
-
 struct RateLimit {
     unordered_map<string, pair<int, time_t>> requestCounts;
     mutex rateMutex;
-    
+
     bool checkRateLimit(const string& ip, int maxRequests = 100, int windowSeconds = 60) {
         lock_guard<mutex> lock(rateMutex);
         time_t now = time(nullptr);
-        
         auto it = requestCounts.find(ip);
         if (it == requestCounts.end() || now - it->second.second > windowSeconds) {
             requestCounts[ip] = {1, now};
             return true;
         }
-        
-        if (it->second.first >= maxRequests) {
-            return false;
-        }
-        
+        if (it->second.first >= maxRequests) return false;
         it->second.first++;
         return true;
     }
 };
-
-// --- URL Shortener Server ---
 
 class URLShortenerServer {
 private:
@@ -128,8 +136,7 @@ private:
     string readFile(const string& filename) {
         ifstream file(filename);
         if (!file.is_open()) return "";
-        string content((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
-        return content;
+        return string((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
     }
 
     void loadAliases() {
@@ -143,10 +150,10 @@ private:
             }
         }
     }
-    
+
     void saveAliases() {
         ofstream file(DATA_FILE);
-        if (!file.is_open()) { cerr << "Error: Could not save aliases to file" << endl; return; }
+        if (!file.is_open()) return;
         for (const auto& pair : aliases) {
             file << pair.first << "|" << pair.second << "\n";
         }
@@ -159,10 +166,13 @@ private:
         }
         return true;
     }
-    
+
     bool isValidUrl(const string& url) {
         if (url.empty() || url.length() > 2000) return false;
         if (url.find("http://") != 0 && url.find("https://") != 0) return false;
+        for (char c : url) {
+            if (iscntrl(c)) return false;
+        }
         return true;
     }
 
@@ -172,43 +182,43 @@ private:
         if (key_pos == string::npos) return "";
         size_t value_start = key_pos + search_key.length();
         size_t value_end = body.find("\"", value_start);
+        while (value_end != string::npos && body[value_end - 1] == '\\') {
+            value_end = body.find("\"", value_end + 1);
+        }
         if (value_end == string::npos) return "";
         return body.substr(value_start, value_end - value_start);
     }
-    
+
 public:
     URLShortenerServer(int port = 8080) : server_port(port), templateEngine("") {
         try {
-             templateEngine = Template::fromFile("index.html");
-         } catch (const exception& e) {
-             cerr << "Error loading template: " << e.what() << endl;
-             throw;
-         }
-         loadAliases();
-         addTestAliases();
+            templateEngine = Template::fromFile("index.html");
+        } catch (...) {}
+        loadAliases();
+        addTestAliases();
     }
-    
+
     void addTestAliases() {
         lock_guard<mutex> lock(aliases_mutex);
-        aliases["google"] = "https://www.google.com";
-        aliases["github"] = "https://www.github.com";
+        if (aliases.empty()) {
+            aliases["google"] = "https://www.google.com";
+            aliases["github"] = "https://www.github.com";
+        }
     }
 
     void start() {
         httplib::Server svr;
 
-        // Apply rate limit middleware to all requests
         svr.set_pre_routing_handler([this](const httplib::Request& req, httplib::Response& res) {
             if (!rateLimiter.checkRateLimit(req.remote_addr)) {
                 set_security_headers(res, "application/json");
                 res.status = 429;
-                res.set_content("{\"error\":\"Rate limit exceeded. Please try again later.\"}", "application/json");
+                res.set_content("{\"error\":\"Rate limit exceeded.\"}", "application/json");
                 return httplib::Server::HandlerResponse::Handled;
             }
             return httplib::Server::HandlerResponse::Unhandled;
         });
 
-        // GET / - Main Page
         svr.Get("/", [this](const httplib::Request&, httplib::Response& res) {
             lock_guard<mutex> lock(aliases_mutex);
             templateEngine.set("aliases", "");
@@ -216,18 +226,16 @@ public:
             res.set_content(templateEngine.render(), "text/html");
         });
 
-        // GET /admin - Admin Page
         svr.Get("/admin", [this](const httplib::Request&, httplib::Response& res) {
             string adminContent = readFile("admin.html");
             if (adminContent.empty()) {
                 res.status = 404;
-                adminContent = "<h1>404 Not Found</h1><p>Admin page not found.</p>";
+                adminContent = "<h1>404 Not Found</h1>";
             }
             set_security_headers(res, "text/html");
             res.set_content(adminContent, "text/html");
         });
 
-        // GET /r/{alias} - Redirect
         svr.Get(R"(/r/([a-zA-Z0-9_-]+))", [this](const httplib::Request& req, httplib::Response& res) {
             string alias = req.matches[1].str();
             lock_guard<mutex> lock(aliases_mutex);
@@ -237,88 +245,83 @@ public:
             } else {
                 res.status = 404;
                 set_security_headers(res, "text/html");
-                res.set_content("<h1>404 Not Found</h1><p>Alias not found.</p>", "text/html");
+                res.set_content("<h1>404 Not Found</h1>", "text/html");
             }
         });
 
-        // GET /api/generate-otp - Generate OTP
         svr.Get("/api/generate-otp", [this](const httplib::Request&, httplib::Response& res) {
             string otp = otpManager.generateNewOTP("admin");
-            string json = "{\"otp\":\"" + otp + "\",\"valid_for_seconds\":300}";
+            string json = "{\"otp\":\"" + jsonEscape(otp) + "\",\"valid_for_seconds\":300}";
             set_security_headers(res, "application/json");
             res.set_content(json, "application/json");
         });
-        
-        // GET /api/aliases - Get All Aliases (OTP check removed for now)
+
         svr.Get("/api/aliases", [this](const httplib::Request& req, httplib::Response& res) {
             lock_guard<mutex> lock(aliases_mutex);
-            
-            // NOTE: OTP check would go here if re-enabled
-            
-            string json = "{\"aliases\":[";
+            stringstream json;
+            json << "{\"aliases\":[";
             bool first = true;
             for (const auto& pair : aliases) {
-                if (!first) json += ",";
-                json += "{\"alias\":\"" + pair.first + "\",\"url\":\"" + pair.second + "\"}";
+                if (!first) json << ",";
+                json << "{\"alias\":\"" << jsonEscape(pair.first)
+                     << "\",\"url\":\"" << jsonEscape(pair.second) << "\"}";
                 first = false;
             }
-            json += "]}";
-            
+            json << "]}";
             set_security_headers(res, "application/json");
-            res.set_content(json, "application/json");
+            res.set_content(json.str(), "application/json");
         });
 
-        // POST /api/aliases - Create New Alias
         svr.Post("/api/aliases", [this](const httplib::Request& req, httplib::Response& res) {
-            cerr << "DEBUG: POST body: " << req.body << endl; // Debug log now uses req.body
-
             string alias = extractJsonValue(req.body, "alias");
             string url = extractJsonValue(req.body, "url");
-            
+
             if (alias.empty() || url.empty()) {
-                string errorResponse = "{\"status\":\"error\",\"message\":\"Invalid request format. Expected JSON: {\\\"alias\\\":\\\"your_alias\\\",\\\"url\\\":\\\"your_url\\\"}\"}";
                 set_security_headers(res, "application/json");
                 res.status = 400;
-                return res.set_content(errorResponse, "application/json");
+                res.set_content("{\"status\":\"error\",\"message\":\"Invalid JSON.\"}", "application/json");
+                return;
             }
-            
+
             if (!isValidAlias(alias)) {
                 set_security_headers(res, "application/json");
                 res.status = 400;
-                return res.set_content("{\"status\":\"error\",\"message\":\"Invalid alias. Only alphanumeric characters, hyphens, and underscores are allowed (max 50 chars).\"}", "application/json");
+                res.set_content("{\"status\":\"error\",\"message\":\"Invalid alias.\"}", "application/json");
+                return;
             }
-            
+
             if (!isValidUrl(url)) {
                 set_security_headers(res, "application/json");
                 res.status = 400;
-                return res.set_content("{\"status\":\"error\",\"message\":\"Invalid URL. Must start with http:// or https:// and be a valid URL (max 2000 chars).\"}", "application/json");
+                res.set_content("{\"status\":\"error\",\"message\":\"Invalid URL.\"}", "application/json");
+                return;
             }
-            
-            // NOTE: OTP check would go here if re-enabled
-            
+
             {
                 lock_guard<mutex> lock(aliases_mutex);
                 if (aliases.find(alias) != aliases.end()) {
                     set_security_headers(res, "application/json");
                     res.status = 409;
-                    return res.set_content("{\"status\":\"error\",\"message\":\"Alias already exists.\"}", "application/json");
+                    res.set_content("{\"status\":\"error\",\"message\":\"Alias exists.\"}", "application/json");
+                    return;
                 }
             }
-            
+
             {
                 lock_guard<mutex> lock(aliases_mutex);
                 aliases[alias] = url;
                 saveAliases();
             }
-            
-            string jsonResponse = "{\"status\":\"success\",\"alias\":\"" + alias + "\",\"url\":\"" + url + "\"}";
+
+            string jsonResponse = "{\"status\":\"success\",\"alias\":\"" + jsonEscape(alias) +
+                                  "\",\"url\":\"" + jsonEscape(url) + "\"}";
             set_security_headers(res, "application/json");
             res.set_content(jsonResponse, "application/json");
         });
 
-        cout << "URL Shortener Server started on port " << server_port << " using httplib" << endl;
+        cout << "Server running on port " << server_port << endl;
         if (!svr.listen("0.0.0.0", server_port)) {
-            cerr << "Error: Failed to start server on port " << server_port << endl;
+            cerr << "Failed to bind port " << server_port << endl;
         }
     }
 };
@@ -334,14 +337,11 @@ int main() {
             port = 8080;
         }
     }
-
     try {
         URLShortenerServer server(port);
         server.start();
     } catch (const exception& e) {
-        cerr << "Server error: " << e.what() << endl;
         return 1;
     }
-    
     return 0;
 }
